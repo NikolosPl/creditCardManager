@@ -1,9 +1,9 @@
 spring.application.name=creditCardManager
 
 # PostgreSQL configuration
- spring.datasource.url=jdbc:postgresql://localhost:5432/creditCardManager
- spring.datasource.username=postgres
- spring.datasource.password=1236
+ spring.datasource.url=jdbc:postgresql://localhost:5432/dataBaseName
+ spring.datasource.username=username
+ spring.datasource.password=password
  spring.datasource.driver-class-name=org.postgresql.Driver
 
 
