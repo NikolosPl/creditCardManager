@@ -1,110 +1,192 @@
-# PRD — REST API: System Zarządzania Kartami Kredytowymi
+# PRD — Fullstack: System Zarządzania Kartami Kredytowymi
 
 ## 1. Cel projektu
 
-Backend REST API umożliwiający zarządzanie kartami kredytowymi: wydawanie kart, blokowanie, zmianę limitów oraz przeglądanie historii operacji. Brak uwierzytelniania — wszystkie endpointy publiczne.
+Aplikacja fullstack do zarządzania kartami kredytowymi: wydawanie kart, blokowanie, zmiana limitów i historia operacji. Frontend w Angular, backend REST API w Spring Boot z uwierzytelnianiem JWT.
 
 ---
 
 ## 2. Stack technologiczny
 
+### Backend
 | Warstwa | Technologia |
 |---|---|
 | Framework | Spring Boot 3.x |
+| Bezpieczeństwo | Spring Security + JWT |
 | Baza danych | PostgreSQL |
 | ORM | Spring Data JPA + Hibernate |
 | Build | Maven / Gradle |
 | Dokumentacja API | Springdoc OpenAPI (Swagger UI) |
 
----
-
-## 3. Model danych
-
-### 3.1 `CreditCard`
-```
-id             BIGSERIAL PRIMARY KEY
-card_number    VARCHAR(19) UNIQUE NOT NULL
-holder_name    VARCHAR(100) NOT NULL
-credit_limit   NUMERIC(12,2) NOT NULL
-current_balance NUMERIC(12,2) DEFAULT 0
-status         VARCHAR(10) NOT NULL  -- ACTIVE | BLOCKED | EXPIRED
-issued_at      TIMESTAMP NOT NULL
-expires_at     TIMESTAMP NOT NULL
-```
-
-### 3.2 `CardOperation`
-```
-id          BIGSERIAL PRIMARY KEY
-card_id     BIGINT REFERENCES credit_card(id)
-type        VARCHAR(20) NOT NULL  -- ISSUE | BLOCK | UNBLOCK | LIMIT_CHANGE
-description TEXT
-amount      NUMERIC(12,2)
-timestamp   TIMESTAMP NOT NULL DEFAULT NOW()
-```
+### Frontend
+| Warstwa | Technologia |
+|---|---|
+| Framework | Angular 17+ |
+| Język | TypeScript |
+| Style | Angular Material |
+| HTTP | `HttpClient` + Interceptory |
+| Routing | Angular Router z guard'ami |
+| State | Serwisy + RxJS |
 
 ---
 
-## 4. Konfiguracja PostgreSQL (`application.properties`)
+## 3. Role użytkowników
 
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/credit_cards_db
-spring.datasource.username=postgres
-spring.datasource.password=secret
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
+| Rola | Uprawnienia |
+|---|---|
+| `ADMIN` | Pełny dostęp — wydawanie kart, blokowanie, zmiana limitów, historia wszystkich kart |
+| `USER` | Podgląd własnych kart i historii operacji |
+
+---
+
+## 4. Model danych
+
+```sql
+CREATE TABLE users (
+    id         BIGSERIAL PRIMARY KEY,
+    username   VARCHAR(50)  UNIQUE NOT NULL,
+    password   VARCHAR(255) NOT NULL, -- bcrypt
+    role       VARCHAR(10)  NOT NULL CHECK (role IN ('ADMIN', 'USER')),
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE credit_card (
+    id              BIGSERIAL PRIMARY KEY,
+    card_number     VARCHAR(19)   UNIQUE NOT NULL,
+    holder_name     VARCHAR(100)  NOT NULL,
+    user_id         BIGINT        REFERENCES users(id) ON DELETE SET NULL,
+    credit_limit    NUMERIC(12,2) NOT NULL,
+    current_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+    status          VARCHAR(10)   NOT NULL CHECK (status IN ('ACTIVE', 'BLOCKED', 'EXPIRED')),
+    issued_at       TIMESTAMP     NOT NULL,
+    expires_at      TIMESTAMP     NOT NULL
+);
+
+CREATE TABLE card_operation (
+    id           BIGSERIAL PRIMARY KEY,
+    card_id      BIGINT        REFERENCES credit_card(id) ON DELETE CASCADE,
+    type         VARCHAR(20)   NOT NULL CHECK (type IN ('ISSUE', 'BLOCK', 'UNBLOCK', 'LIMIT_CHANGE')),
+    description  TEXT,
+    amount       NUMERIC(12,2),
+    performed_by VARCHAR(50),
+    timestamp    TIMESTAMP     NOT NULL DEFAULT NOW()
+);
 ```
 
 ---
 
-## 5. Endpointy API
+## 5. Backend — Endpointy API
+
+### Auth
+| Metoda | Ścieżka | Opis | Dostęp |
+|---|---|---|---|
+| POST | `/api/auth/register` | Rejestracja | Publiczny |
+| POST | `/api/auth/login` | Logowanie → JWT | Publiczny |
 
 ### Karty
-| Metoda | Ścieżka | Opis |
-|---|---|---|
-| POST | `/api/cards` | Wydaj nową kartę |
-| GET | `/api/cards` | Lista wszystkich kart |
-| GET | `/api/cards/{id}` | Szczegóły karty |
-| PATCH | `/api/cards/{id}/block` | Zablokuj kartę |
-| PATCH | `/api/cards/{id}/unblock` | Odblokuj kartę |
-| PATCH | `/api/cards/{id}/limit` | Zmień limit kredytowy |
-| DELETE | `/api/cards/{id}` | Usuń kartę |
+| Metoda | Ścieżka | Opis | Dostęp |
+|---|---|---|---|
+| POST | `/api/cards` | Wydaj nową kartę | ADMIN |
+| GET | `/api/cards` | Lista kart | ADMIN: wszystkie, USER: własne |
+| GET | `/api/cards/{id}` | Szczegóły karty | Właściciel / ADMIN |
+| PATCH | `/api/cards/{id}/block` | Zablokuj | ADMIN |
+| PATCH | `/api/cards/{id}/unblock` | Odblokuj | ADMIN |
+| PATCH | `/api/cards/{id}/limit` | Zmień limit | ADMIN |
+| DELETE | `/api/cards/{id}` | Usuń kartę | ADMIN |
 
 ### Historia
-| Metoda | Ścieżka | Opis |
-|---|---|---|
-| GET | `/api/cards/{id}/history` | Historia operacji karty |
-| GET | `/api/operations` | Wszystkie operacje w systemie |
+| Metoda | Ścieżka | Opis | Dostęp |
+|---|---|---|---|
+| GET | `/api/cards/{id}/history` | Historia operacji karty | Właściciel / ADMIN |
+| GET | `/api/operations` | Wszystkie operacje | ADMIN |
 
 ---
 
-## 6. Kluczowe wymagania — Spring Data JPA
+## 6. Backend — Spring Security
 
-- Repozytoria: `CreditCardRepository`, `CardOperationRepository`
-- Metody przez konwencję nazw: `findByStatus`, `findByCardId`
-- Każda modyfikacja karty (blokada, zmiana limitu) zapisuje wpis w `CardOperation`
+- JWT w nagłówku `Authorization: Bearer <token>`
+- Filtr `JwtAuthenticationFilter` dla każdego żądania
+- `UserDetailsService` ładujący użytkownika z PostgreSQL przez JPA
+- Endpointy `/api/auth/**` wyłączone z ochrony
+- Autoryzacja na poziomie metod (`@PreAuthorize`)
+- CORS skonfigurowany dla `http://localhost:4200`
+
+---
+
+## 7. Backend — Spring Data JPA
+
+- Repozytoria: `UserRepository`, `CreditCardRepository`, `CardOperationRepository`
+- Metody przez konwencję nazw: `findByUserId`, `findByStatus`, `findByCardId`
+- Każda modyfikacja karty zapisuje wpis w `CardOperation`
 - Operacje modyfikujące oznaczone `@Transactional`
 
 ---
 
-## 7. Walidacja i błędy
+## 8. Frontend — Widoki Angular
+
+| Widok | Ścieżka | Dostęp |
+|---|---|---|
+| Logowanie | `/login` | Publiczny |
+| Rejestracja | `/register` | Publiczny |
+| Dashboard | `/dashboard` | Zalogowany |
+| Lista kart | `/cards` | Zalogowany |
+| Szczegóły karty | `/cards/:id` | Właściciel / ADMIN |
+| Panel admina | `/admin` | ADMIN |
+| Historia operacji | `/cards/:id/history` | Właściciel / ADMIN |
+
+---
+
+## 9. Frontend — Kluczowe elementy
+
+### AuthInterceptor
+Automatyczne dołączanie JWT do każdego żądania HTTP:
+```typescript
+headers = req.headers.set('Authorization', `Bearer ${token}`);
+```
+
+### AuthGuard
+Blokowanie tras dla niezalogowanych użytkowników i ról bez dostępu:
+```typescript
+canActivate(): boolean { return this.authService.isLoggedIn(); }
+```
+
+### Serwisy
+- `AuthService` — login, logout, przechowywanie tokena w `localStorage`
+- `CardService` — CRUD kart przez `HttpClient`
+- `OperationService` — pobieranie historii
+
+---
+
+## 10. Walidacja i błędy
 
 | Kod | Sytuacja |
 |---|---|
 | `400` | Nieprawidłowe dane wejściowe |
-| `404` | Karta nie istnieje |
+| `401` | Brak / nieprawidłowy token |
+| `403` | Brak uprawnień do zasobu |
+| `404` | Karta / użytkownik nie istnieje |
 | `409` | Karta już zablokowana / już aktywna |
+
+Frontend obsługuje błędy globalnie przez `HttpInterceptor` — `401` przekierowuje na `/login`.
 
 ---
 
-## 8. Przykładowe request/response
+## 11. Przykładowe request/response
 
-### POST `/api/cards` — wydanie karty
+### POST `/api/auth/login`
 **Request:**
 ```json
-{
-  "holderName": "Jan Kowalski",
-  "creditLimit": 5000.00
-}
+{ "username": "admin", "password": "haslo123" }
+```
+**Response `200`:**
+```json
+{ "token": "eyJhbGciOiJIUzI1NiJ9..." }
+```
+
+### POST `/api/cards`
+**Request:**
+```json
+{ "holderName": "Jan Kowalski", "userId": 5, "creditLimit": 5000.00 }
 ```
 **Response `201`:**
 ```json
@@ -117,28 +199,17 @@ spring.jpa.show-sql=true
 }
 ```
 
-### PATCH `/api/cards/12/limit`
-**Request:**
-```json
-{ "newLimit": 8000.00 }
-```
-**Response `200`:**
-```json
-{
-  "id": 12,
-  "creditLimit": 8000.00,
-  "updatedAt": "2026-05-31T11:30:00Z"
-}
-```
-
 ---
 
-## 9. Zakres MVP
+## 12. Zakres MVP
 
-- [x] Wydawanie kart
+- [x] Rejestracja i logowanie (JWT)
+- [x] Wydawanie kart (ADMIN)
 - [x] Blokowanie / odblokowanie
 - [x] Zmiana limitu
 - [x] Historia operacji
-- [ ] *(poza MVP)* Uwierzytelnianie / autoryzacja
+- [x] Panel użytkownika (Angular)
+- [x] Panel admina (Angular)
+- [ ] *(poza MVP)* Powiadomienia email
 - [ ] *(poza MVP)* Płatności / transakcje
 - [ ] *(poza MVP)* Eksport historii do PDF/CSV
