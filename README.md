@@ -15,7 +15,7 @@ Aplikacja fullstack do zarządzania kartami kredytowymi: wydawanie kart, blokowa
 | Bezpieczeństwo | Spring Security + JWT |
 | Baza danych | PostgreSQL |
 | ORM | Spring Data JPA + Hibernate |
-| Build | Maven / Gradle |
+| Build | Gradle |
 | Dokumentacja API | Springdoc OpenAPI (Swagger UI) |
 
 ### Frontend
