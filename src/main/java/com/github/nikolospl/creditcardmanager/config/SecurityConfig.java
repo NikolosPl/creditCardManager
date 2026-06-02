@@ -34,7 +34,7 @@ public class SecurityConfig {
         http
                 .csrf(CsrfConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/cards/{id}", "/api/v1/cards/{id}/transactions").hasAnyRole("USER","ADMIN")
+                        .requestMatchers("/api/v1/cards/{id}", "/api/v1/cards/{id}/transactions", "/api/v1/cards/{id}/changeLimit", "/api-docs/**", "/swagger-ui/", "/swagger-ui.html").hasAnyRole("USER","ADMIN")
                         .requestMatchers("/api/v1/cards/{id}/pay", "/api/v1/cards/{id}/repay").hasRole("USER")
                         .requestMatchers("/api/v1/cards/{id}/block", "/api/v1/cards/{id}/unblock").hasRole("ADMIN")
                         .requestMatchers("/api/v1/cards").authenticated()
