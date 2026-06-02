@@ -42,35 +42,33 @@ Aplikacja fullstack do zarządzania kartami kredytowymi: wydawanie kart, blokowa
 ## 4. Model danych
 
 ```sql
-CREATE TABLE users (
-    id         BIGSERIAL PRIMARY KEY,
+CREATE TABLE "user" (
+    id         UUID PRIMARY KEY,
     username   VARCHAR(50)  UNIQUE NOT NULL,
-    password   VARCHAR(255) NOT NULL, -- bcrypt
+    password   VARCHAR(255) NOT NULL,
     role       VARCHAR(10)  NOT NULL CHECK (role IN ('ADMIN', 'USER')),
     created_at TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE credit_card (
-    id              BIGSERIAL PRIMARY KEY,
-    card_number     VARCHAR(19)   UNIQUE NOT NULL,
-    holder_name     VARCHAR(100)  NOT NULL,
-    user_id         BIGINT        REFERENCES users(id) ON DELETE SET NULL,
-    credit_limit    NUMERIC(12,2) NOT NULL,
-    current_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
-    status          VARCHAR(10)   NOT NULL CHECK (status IN ('ACTIVE', 'BLOCKED', 'EXPIRED')),
-    issued_at       TIMESTAMP     NOT NULL,
-    expires_at      TIMESTAMP     NOT NULL
+CREATE TABLE "credit_cards" (
+    id UUID PRIMARY KEY,
+    card_number VARCHAR(255) NOT NULL UNIQUE,
+    customer_id UUID NOT NULL,
+    card_limit NUMERIC(19, 2) NOT NULL,
+    used_funds NUMERIC(19, 2) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    CONSTRAINT fk_customerId foreign key (customer_id) references "user"(id)
 );
 
-CREATE TABLE card_operation (
-    id           BIGSERIAL PRIMARY KEY,
-    card_id      BIGINT        REFERENCES credit_card(id) ON DELETE CASCADE,
-    type         VARCHAR(20)   NOT NULL CHECK (type IN ('ISSUE', 'BLOCK', 'UNBLOCK', 'LIMIT_CHANGE')),
-    description  TEXT,
-    amount       NUMERIC(12,2),
-    performed_by VARCHAR(50),
-    timestamp    TIMESTAMP     NOT NULL DEFAULT NOW()
+CREATE TABLE "card_transactions" (
+    id UUID PRIMARY KEY,
+    card_id UUID NOT NULL,
+    amount NUMERIC(19, 2) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    CONSTRAINT fk_card FOREIGN KEY (card_id) REFERENCES "credit_cards"(id)
 );
+
 ```
 
 ---

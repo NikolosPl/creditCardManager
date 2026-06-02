@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @Entity
 @Table(name = "credit_cards")
 @Getter @Setter
-public class CreditCard {
+public class    CreditCard {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
