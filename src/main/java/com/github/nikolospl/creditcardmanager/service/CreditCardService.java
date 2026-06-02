@@ -59,6 +59,39 @@ public class CreditCardService {
                 .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie została znaleziona!"));
     }
     @Transactional
+    public CreditCardResponse changeLimit(UUID id, PayRequest request){
+        CreditCard card = repository.findById(id)
+                .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie została znaleziona!"));
+
+        if(card.getStatus() == CardStatus.BLOCKED){
+            throw new CardOperationException("Nie można zmienić limitu zablokowanej karty!");
+        }
+
+        if(card.getCardLimit().subtract(card.getUsedFunds()).compareTo(request.amount()) < 0){
+            throw new CardOperationException("Nowy limit jest niższy niż aktualnie używane środki!");
+        }
+
+        card.setCardLimit(request.amount());
+        CreditCard updatedCard = repository.save(card);
+
+        CardTransaction tx = new CardTransaction();
+        tx.setCardId(card.getId());
+        tx.setAmount(request.amount());
+        tx.setType(TransactionType.LIMIT_CHANGE);
+        tx.setTimestamp(LocalDateTime.now());
+        transactionRepository.save(tx);
+
+        return new CreditCardResponse(
+                updatedCard.getId(),
+                updatedCard.getCardNumber(),
+                updatedCard.getCardLimit(),
+                updatedCard.getUsedFunds(),
+                updatedCard.getStatus().name()
+        );
+
+
+    }
+    @Transactional
     public CreditCardResponse blockCard(UUID id){
         CreditCard card = repository.findById(id)
                 .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie została znaleziona!"));

@@ -53,4 +53,10 @@ public class CreditCardController {
         CreditCardResponse response = cardService.repayDebt(id,request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{id}/changeLimit")
+    public ResponseEntity<CreditCardResponse> changeLimit(@PathVariable UUID id, @Valid @RequestBody PayRequest request){
+        CreditCardResponse response = cardService.changeLimit(id, request);
+        return ResponseEntity.ok(response);
+    }
 }
