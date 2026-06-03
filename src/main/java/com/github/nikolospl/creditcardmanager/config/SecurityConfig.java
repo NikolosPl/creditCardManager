@@ -14,6 +14,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -40,6 +43,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/cards").authenticated()
                         .anyRequest().authenticated()
                 )
+                .cors(cors -> cors.configurationSource(_ -> {
+                    var config = new CorsConfiguration();
+                    config.setAllowedOrigins(List.of("http://localhost:4200"));
+                    config.setAllowedHeaders(List.of("*"));
+                    config.setAllowedMethods(List.of("*"));
+                    return config;
+                }))
                 .httpBasic(Customizer.withDefaults());
         try{
             return http.build();

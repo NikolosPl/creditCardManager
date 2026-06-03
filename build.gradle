@@ -43,3 +43,11 @@ dependencies {
 test{
     useJUnitPlatform()
 }
+
+tasks.register('buildFrontend', Exec){
+    workingDir 'frontend'
+    commandLine 'ng', 'build', '--output-path', '../src/main/resources/static'
+}
+tasks.named('bootJar'){
+    dependsOn tasks.named('buildFrontend')
+}
