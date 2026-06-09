@@ -1,4 +1,4 @@
-CREATE TABLE "user" (
+CREATE TABLE "users" (
     id         UUID PRIMARY KEY,
     username   VARCHAR(50)  UNIQUE NOT NULL,
     password   VARCHAR(255) NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE "credit_cards" (
     card_limit NUMERIC(19, 2) NOT NULL,
     used_funds NUMERIC(19, 2) NOT NULL,
     status VARCHAR(50) NOT NULL,
-    CONSTRAINT fk_customerId foreign key (customer_id) references "user"(id)
+    CONSTRAINT fk_customerId foreign key (customer_id) references "users"(id)
 );
 
 CREATE TABLE "card_transactions" (
