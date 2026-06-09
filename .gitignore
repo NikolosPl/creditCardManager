@@ -37,6 +37,19 @@ out/
 ### VS Code ###
 .vscode/
 
+### Logs ###
+*.log
+
+
+### Local env files ###
+.env
+.env.*
+
+
+### OS files ###
+.DS_Store
+Thumbs.db
+
 
 ### Other ###
 src/main/resources/static/*
