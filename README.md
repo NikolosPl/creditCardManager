@@ -78,25 +78,21 @@ CREATE TABLE "card_transactions" (
 ### Auth
 | Metoda | Ścieżka | Opis | Dostęp |
 |---|---|---|---|
-| POST | `/api/auth/register` | Rejestracja | Publiczny |
 | POST | `/api/auth/login` | Logowanie → JWT | Publiczny |
 
 ### Karty
 | Metoda | Ścieżka | Opis | Dostęp |
 |---|---|---|---|
-| POST | `/api/cards` | Wydaj nową kartę | ADMIN |
-| GET | `/api/cards` | Lista kart | ADMIN: wszystkie, USER: własne |
-| GET | `/api/cards/{id}` | Szczegóły karty | Właściciel / ADMIN |
-| PATCH | `/api/cards/{id}/block` | Zablokuj | ADMIN |
-| PATCH | `/api/cards/{id}/unblock` | Odblokuj | ADMIN |
-| PATCH | `/api/cards/{id}/limit` | Zmień limit | ADMIN |
-| DELETE | `/api/cards/{id}` | Usuń kartę | ADMIN |
+| POST | `/api/v1/cards` | Wydaj nową kartę | USER / ADMIN |
+| GET | `/api/v1/cards/{id}` | Szczegóły karty | Właściciel / ADMIN |
+| POST | `/api/v1/cards/{id}/block` | Zablokuj kartę | ADMIN |
+| POST | `/api/v1/cards/{id}/unblock` | Odblokuj kartę | ADMIN |
+| POST | `/api/v1/cards/{id}/pay` | Wykonaj płatność | USER |
+| POST | `/api/v1/cards/{id}/repay` | Spłać zadłużenie | USER |
+| POST | `/api/v1/cards/{id}/changeLimit` | Zmień limit karty | Właściciel / ADMIN |
 
 ### Historia
-| Metoda | Ścieżka | Opis | Dostęp |
-|---|---|---|---|
-| GET | `/api/cards/{id}/history` | Historia operacji karty | Właściciel / ADMIN |
-| GET | `/api/operations` | Wszystkie operacje | ADMIN |
+Historia operacji jest zapisywana w tabeli `card_transactions` podczas operacji `pay`, `repay` i `changeLimit`.
 
 ---
 
@@ -113,10 +109,11 @@ CREATE TABLE "card_transactions" (
 
 ## 7. Backend — Spring Data JPA
 
-- Repozytoria: `UserRepository`, `CreditCardRepository`, `CardOperationRepository`
-- Metody przez konwencję nazw: `findByUserId`, `findByStatus`, `findByCardId`
-- Każda modyfikacja karty zapisuje wpis w `CardOperation`
+- Repozytoria: `UserRepository`, `CreditCardRepository`, `CardTransactionRepository`
+- Metody przez konwencję nazw: `findByUsername`, `findByCustomerId`, `findByCardIdOrderByTimestampDesc`
+- Każda modyfikacja salda/limitu zapisuje wpis w `CardTransaction`
 - Operacje modyfikujące oznaczone `@Transactional`
+- Krytyczne odczyty płatności używają blokady `PESSIMISTIC_WRITE`
 
 ---
 
@@ -181,19 +178,19 @@ Frontend obsługuje błędy globalnie przez `HttpInterceptor` — `401` przekier
 { "token": "eyJhbGciOiJIUzI1NiJ9..." }
 ```
 
-### POST `/api/cards`
+### POST `/api/v1/cards`
 **Request:**
 ```json
-{ "holderName": "Jan Kowalski", "userId": 5, "creditLimit": 5000.00 }
+{ "customerId": "4f47e5f7-f36f-4900-bf23-e51be4a94d9f", "initialLimit": 5000.00 }
 ```
 **Response `201`:**
 ```json
 {
-  "id": 12,
-  "cardNumber": "**** **** **** 4821",
-  "status": "ACTIVE",
-  "creditLimit": 5000.00,
-  "issuedAt": "2026-05-31T10:00:00Z"
+    "id": "3ec8fca6-6f20-4290-8f4b-ed37e32d95b5",
+    "cardNumber": "1234123412341234",
+    "cardLimit": 5000.00,
+    "usedFunds": 0.00,
+    "status": "ACTIVE"
 }
 ```
 

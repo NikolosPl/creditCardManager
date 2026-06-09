@@ -16,3 +16,7 @@ spring.flyway.enabled=true
 
 app.security.user.password=${USER_DB_PASSWORD:twoje_haslo_uzytkownika}
 app.security.admin.password=${ADMIN_DB_PASSWORD:twoje_haslo_admina}
+app.security.user.username=${USER_DB_USERNAME:twoj_user_login}
+app.security.admin.username=${ADMIN_DB_USERNAME:twoj_admin_login}
+app.security.jwt.secret=${JWT_SECRET:zmien-to-na-sekret-minimum-32-znaki}
+app.security.jwt.expiration-ms=${JWT_EXPIRATION_MS:3600000}

@@ -3,7 +3,7 @@ package com.github.nikolospl.creditcardmanager.service;
 import com.github.nikolospl.creditcardmanager.dto.CreateCardRequest;
 import com.github.nikolospl.creditcardmanager.dto.CreditCardResponse;
 import com.github.nikolospl.creditcardmanager.dto.PayRequest;
-import com.github.nikolospl.creditcardmanager.exception.CardNotFoundException;
+import com.github.nikolospl.creditcardmanager.exception.ResourceNotFoundException;
 import com.github.nikolospl.creditcardmanager.exception.CardOperationException;
 import com.github.nikolospl.creditcardmanager.model.CardStatus;
 import com.github.nikolospl.creditcardmanager.model.CardTransaction;
@@ -11,8 +11,12 @@ import com.github.nikolospl.creditcardmanager.model.CreditCard;
 import com.github.nikolospl.creditcardmanager.model.TransactionType;
 import com.github.nikolospl.creditcardmanager.repository.CardTransactionRepository;
 import com.github.nikolospl.creditcardmanager.repository.CreditCardRepository;
-import jakarta.transaction.Transactional;
+import com.github.nikolospl.creditcardmanager.repository.UserRepository;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,10 +26,14 @@ import java.util.UUID;
 public class CreditCardService {
     private final CreditCardRepository repository;
     private final CardTransactionRepository transactionRepository;
+    private final UserRepository userRepository;
 
-    public CreditCardService(CreditCardRepository repository, CardTransactionRepository transactionRepository){
+    public CreditCardService(CreditCardRepository repository,
+                             CardTransactionRepository transactionRepository,
+                             UserRepository userRepository){
         this.repository = repository;
         this.transactionRepository = transactionRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -49,19 +57,28 @@ public class CreditCardService {
     }
     public CreditCardResponse getCardById(UUID id){
         return repository.findById(id)
-                .map(card -> new CreditCardResponse(
-                        card.getId(),
-                        card.getCardNumber(),
-                        card.getCardLimit(),
-                        card.getUsedFunds(),
-                        card.getStatus().name()
-                ))
-                .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie została znaleziona!"));
+            .map(card -> {
+                assertCardAccess(card);
+                return new CreditCardResponse(
+                    card.getId(),
+                    card.getCardNumber(),
+                    card.getCardLimit(),
+                    card.getUsedFunds(),
+                    card.getStatus().name()
+                );
+            })
+            .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
     }
     @Transactional
     public CreditCardResponse changeLimit(UUID id, PayRequest request){
-        CreditCard card = repository.findById(id)
-                .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie została znaleziona!"));
+        CreditCard card = repository.findByIdForUpdate(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
+
+        assertCardAccess(card);
+
+        if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new CardOperationException("Nowy limit musi być większy od zera!");
+        }
 
         if(card.getStatus() == CardStatus.BLOCKED){
             throw new CardOperationException("Nie można zmienić limitu zablokowanej karty!");
@@ -94,13 +111,10 @@ public class CreditCardService {
     @Transactional
     public CreditCardResponse blockCard(UUID id){
         CreditCard card = repository.findById(id)
-                .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie została znaleziona!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
 
-        if(card.getStatus() == CardStatus.BLOCKED){
-            throw new CardOperationException("Karta jest już zablokowana!");
-        }
-
-        card.setStatus(CardStatus.BLOCKED);
+        assertCardAccess(card);
+        card.block();
 
         CreditCard updatedCard = repository.save(card);
 
@@ -115,7 +129,9 @@ public class CreditCardService {
     @Transactional
     public CreditCardResponse unblockCard(UUID id){
         CreditCard card = repository.findById(id)
-                .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie została znaleziona!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
+
+        assertCardAccess(card);
 
         if(card.getStatus() == CardStatus.ACTIVE){
             throw new CardOperationException("Karta już jest aktywna!");
@@ -136,19 +152,11 @@ public class CreditCardService {
 
     @Transactional
     public CreditCardResponse processPayment(UUID id, PayRequest request){
-        CreditCard card = repository.findById(id)
-                .orElseThrow(() -> new CardNotFoundException("Karta o podanym ID nie istnieje!"));
+        CreditCard card = repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie istnieje!"));
 
-        if(card.getStatus() == CardStatus.BLOCKED){
-            throw new CardOperationException("Nie można dokonać płatności zablokowaną kartą!");
-        }
-
-        BigDecimal availableFunds = card.getCardLimit().subtract(card.getUsedFunds());
-        if(request.amount().compareTo(availableFunds) > 0){
-            throw new CardOperationException("Brak wystarczających środków na karcie!");
-        }
-
-        card.setUsedFunds(card.getUsedFunds().add(request.amount()));
+        assertCardAccess(card);
+        card.processPayment(request.amount());
         CreditCard updatedCard = repository.save(card);
 
         CardTransaction tx = new CardTransaction();
@@ -169,18 +177,11 @@ public class CreditCardService {
 
     @Transactional
     public CreditCardResponse repayDebt(UUID id, PayRequest request){
-        CreditCard card = repository.findById(id)
-                .orElseThrow(() -> new CardNotFoundException("Karta o podanym Id nie istnieje!"));
+        CreditCard card = repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym Id nie istnieje!"));
 
-        if(card.getStatus() == CardStatus.BLOCKED){
-            throw new CardOperationException("Nie można spłacić zablokowanej karty!");
-        }
-
-        if(request.amount().compareTo(card.getUsedFunds()) > 0){
-            throw new CardOperationException("Nie możesz spłacić więcej, niż wynosi twój aktualny dług!");
-        }
-
-        card.setUsedFunds(card.getUsedFunds().subtract(request.amount()));
+        assertCardAccess(card);
+        card.repay(request.amount());
         CreditCard updatedCard = repository.save(card);
 
         CardTransaction tx = new CardTransaction();
@@ -206,5 +207,27 @@ public class CreditCardService {
             cardNumber.append(digit);
         }
         return cardNumber.toString();
+    }
+
+    private void assertCardAccess(CreditCard card) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("Brak uwierzytelnionego użytkownika");
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+
+        if (isAdmin) {
+            return;
+        }
+
+        String username = authentication.getName();
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AccessDeniedException("Użytkownik nie istnieje"));
+
+        if (!user.getId().equals(card.getCustomerId())) {
+            throw new AccessDeniedException("Brak dostępu do tej karty");
+        }
     }
 }

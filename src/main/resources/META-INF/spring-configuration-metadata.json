@@ -1,0 +1,34 @@
+{
+  "properties": [
+    {
+      "name": "app.security.user.username",
+      "type": "java.lang.String",
+      "description": "Default DB seeded user username"
+    },
+    {
+      "name": "app.security.user.password",
+      "type": "java.lang.String",
+      "description": "Default DB seeded user password"
+    },
+    {
+      "name": "app.security.admin.username",
+      "type": "java.lang.String",
+      "description": "Default DB seeded admin username"
+    },
+    {
+      "name": "app.security.admin.password",
+      "type": "java.lang.String",
+      "description": "Default DB seeded admin password"
+    },
+    {
+      "name": "app.security.jwt.secret",
+      "type": "java.lang.String",
+      "description": "JWT secret used to sign tokens"
+    },
+    {
+      "name": "app.security.jwt.expiration-ms",
+      "type": "java.lang.Long",
+      "description": "JWT expiration in milliseconds"
+    }
+  ]
+}
