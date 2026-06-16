@@ -19,14 +19,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
 public class CreditCardService {
+    private static final String CARD_NOT_FOUND_MESSAGE = "Karta o podanym ID nie została znaleziona!";
     private final CreditCardRepository repository;
     private final CardTransactionRepository transactionRepository;
     private final UserRepository userRepository;
+    private final SecureRandom random = new SecureRandom();
 
     public CreditCardService(CreditCardRepository repository,
                              CardTransactionRepository transactionRepository,
@@ -67,12 +70,12 @@ public class CreditCardService {
                     card.getStatus().name()
                 );
             })
-            .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
+            .orElseThrow(() -> new ResourceNotFoundException(CARD_NOT_FOUND_MESSAGE));
     }
     @Transactional
     public CreditCardResponse changeLimit(UUID id, PayRequest request){
         CreditCard card = repository.findByIdForUpdate(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
+            .orElseThrow(() -> new ResourceNotFoundException(CARD_NOT_FOUND_MESSAGE));
 
         assertCardAccess(card);
 
@@ -111,7 +114,7 @@ public class CreditCardService {
     @Transactional
     public CreditCardResponse blockCard(UUID id){
         CreditCard card = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
+                .orElseThrow(() -> new ResourceNotFoundException(CARD_NOT_FOUND_MESSAGE));
 
         assertCardAccess(card);
         card.block();
@@ -129,7 +132,7 @@ public class CreditCardService {
     @Transactional
     public CreditCardResponse unblockCard(UUID id){
         CreditCard card = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie została znaleziona!"));
+                .orElseThrow(() -> new ResourceNotFoundException(CARD_NOT_FOUND_MESSAGE));
 
         assertCardAccess(card);
 
@@ -178,7 +181,7 @@ public class CreditCardService {
     @Transactional
     public CreditCardResponse repayDebt(UUID id, PayRequest request){
         CreditCard card = repository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym Id nie istnieje!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Karta o podanym ID nie istnieje!"));
 
         assertCardAccess(card);
         card.repay(request.amount());
@@ -203,7 +206,7 @@ public class CreditCardService {
     private String generateRandomCardNumber(){
         StringBuilder cardNumber = new StringBuilder();
         for (int i = 0; i < 16; i++) {
-            int digit = (int) (Math.random() * 10);
+            int digit = random.nextInt(10);
             cardNumber.append(digit);
         }
         return cardNumber.toString();
