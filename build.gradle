@@ -1,8 +1,10 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.6'
+    id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
 }
+
+
 
 group = 'com.github.nikolospl'
 version = '0.0.1-SNAPSHOT'
@@ -10,7 +12,7 @@ description = 'creditCardManager'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(26)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -19,6 +21,8 @@ repositories {
 }
 
 dependencies {
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    compileOnly 'org.springframework.boot:spring-boot-devtools'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
@@ -53,10 +57,18 @@ test{
     useJUnitPlatform()
 }
 
-tasks.register('buildFrontend', Exec){
-    workingDir 'frontend'
-    commandLine 'ng', 'build', '--output-path', '../src/main/resources/static'
+tasks.register('buildFrontend', Exec) {
+    workingDir 'frontend/creditCardManager'
+    
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'npm', 'run', 'build'
+    } else {
+        commandLine 'npm', 'run', 'build'
+    }
 }
+
 tasks.named('bootJar'){
-    dependsOn tasks.named('buildFrontend')
+    if (!System.getenv("IN_DOCKER")) {
+        dependsOn tasks.named('buildFrontend')
+    }
 }
