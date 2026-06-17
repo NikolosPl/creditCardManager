@@ -18,7 +18,7 @@ ENV IN_DOCKER=true
 RUN ./gradlew bootJar -x test
 
 # --- ETAP 3: Uruchomienie gotowej aplikacji ---
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:26-jre-alpine
 WORKDIR /app
 COPY --from=backend-build /app/build/libs/*.jar app.jar
 EXPOSE 8080
